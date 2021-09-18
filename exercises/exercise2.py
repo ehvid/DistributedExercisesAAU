@@ -62,9 +62,8 @@ class RipCommunication(Device):
                 returned_table = self.merge_tables(ingoing.source, ingoing.table)
                 if returned_table is not None:
                     self.routing_table = returned_table
-                    if self.routing_table_complete():
-                        for neigh in self.neighbors:
-                            self.medium().send(RipMessage(self.index(), neigh, self.routing_table))
+                    for neigh in self.neighbors:
+                        self.medium().send(RipMessage(self.index(), neigh, self.routing_table))
             if type(ingoing) is RoutableMessage:
                 print(
                     f"Device {self.index()}: Routing from {ingoing.first_node} to {ingoing.last_node} via #{self.index()}: [#{ingoing.content}]")
