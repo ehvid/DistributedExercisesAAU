@@ -13,6 +13,7 @@ class RipMessage(MessageStub):
     def __str__(self):
         return f'RipMessage: {self.source} -> {self.destination} : {self.table}'
 
+
 class RoutableMessage(MessageStub):
     def __init__(self, sender: int, destination: int, first_node: int, last_node: int, content):
         super().__init__(sender, destination)
@@ -24,17 +25,23 @@ class RoutableMessage(MessageStub):
         return f'RoutableMessage: {self.source} -> {self.destination} : {self.content}'
 
 
-
-
 class RipCommunication(Device):
 
-    def __init__(self, index: int, number_of_devices: int, medium: Medium):
+    def __init__(self, index: int, number_of_devices: int, medium: Medium, number_of_neighbors: int = 3):
         super().__init__(index, number_of_devices, medium)
+        # creates random neighbors for the device.
         rand = random.Random()
-
-        self.neighbors = [rand.randint(0, number_of_devices) for x in range(0, 3)] # generate an appropriate list
-
+        self.neighbors = [rand.randint(0, number_of_devices) for _ in range(0, number_of_neighbors)]  # generate an appropriate list
         self.routing_table = dict()
+
+    def routing_table_complete(self):
+        if len(self.routing_table) < self.number_of_devices()-1:
+            return False
+        for row in self.routing_table:
+            (next_hop, distance) = self.routing_table[row]
+            if distance > (self.number_of_devices()/2):
+                return False
+        return True
 
     def run(self):
         for neigh in self.neighbors:
@@ -55,37 +62,44 @@ class RipCommunication(Device):
                 returned_table = self.merge_tables(ingoing.source, ingoing.table)
                 if returned_table is not None:
                     self.routing_table = returned_table
-                    for neigh in self.neighbors:
-                        self.medium().send(RipMessage(self.index(), neigh, self.routing_table))
-
+                    if self.routing_table_complete():
+                        for neigh in self.neighbors:
+                            self.medium().send(RipMessage(self.index(), neigh, self.routing_table))
             if type(ingoing) is RoutableMessage:
-                print(f"Device {self.index()}: Routing from {ingoing.first_node} to {ingoing.last_node} via #{self.index()}: [#{ingoing.content}]")
+                print(
+                    f"Device {self.index()}: Routing from {ingoing.first_node} to {ingoing.last_node} via #{self.index()}: [#{ingoing.content}]")
                 if ingoing.last_node is self.index():
-                    print(f"\tDevice {self.index()}: delivered message from {ingoing.first_node} to {ingoing.last_node}: {ingoing.content}")
+                    print(
+                        f"\tDevice {self.index()}: delivered message from {ingoing.first_node} to {ingoing.last_node}: {ingoing.content}")
                     continue
                 if self.routing_table[ingoing.last_node] is not None:
                     (next_hop, distance) = self.routing_table[ingoing.last_node]
-                    self.medium().send(RoutableMessage(self.index(), next_hop, ingoing.first_node, ingoing.last_node, ingoing.content))
+                    self.medium().send(
+                        RoutableMessage(self.index(), next_hop, ingoing.first_node, ingoing.last_node, ingoing.content))
                     continue
-                print(f"\tDevice {self.index()}:  DROP Unknown route #{ingoing.first_node} to #{ingoing.last_node} via #{self.index}, message #{ingoing.content}")
+                print(
+                    f"\tDevice {self.index()}:  DROP Unknown route #{ingoing.first_node} to #{ingoing.last_node} via #{self.index}, message #{ingoing.content}")
 
             # this call is only used for synchronous networks
             self.medium().wait_for_next_round()
 
-    def merge_tables(self, src, table):
-        # return None if the table does not change
-        doesChange = False
-        for routingRowIndex in table:
-            if routingRowIndex != src:
-                if routingRowIndex not in self.routing_table: #does not have current route
-                    table[routingRowIndex] = (src, table[routingRowIndex][1] + 1)
-                    doesChange = True
-                else: #has route already
-                    if self.routing_table[routingRowIndex][1] < table[routingRowIndex][1] + 1:
-                        table[routingRowIndex] = (src, table[routingRowIndex][1] + 1)
-                        doesChange = True
-        return table if doesChange else None
-
+    def merge_tables(self, src: int, table: dict[int, (int, int)]):
+        """
+        :param src: The device from which has sent its routing_table.
+        :param table: The routing table of src.
+        :return: If updated returns the updated version of self.routing_table, else None.
+        """
+        does_change = False
+        for routing_row_key in table:
+            if routing_row_key != src:  # else do nothing.
+                if routing_row_key not in self.routing_table:  # device does not have current route
+                    table[routing_row_key] = (src, table[routing_row_key][1] + 1)
+                    does_change = True
+                else:  # device has route already
+                    if self.routing_table[routing_row_key][1] < table[routing_row_key][1] + 1:
+                        table[routing_row_key] = (src, table[routing_row_key][1] + 1)
+                        does_change = True
+        return table if does_change else None
 
     def print_result(self):
         print(f'\tDevice {self.index()} has routing table: {self.routing_table}')
