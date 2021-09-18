@@ -1,3 +1,5 @@
+import random
+
 from emulators.Device import Device
 from emulators.Medium import Medium
 from emulators.MessageStub import MessageStub
@@ -28,8 +30,9 @@ class RipCommunication(Device):
 
     def __init__(self, index: int, number_of_devices: int, medium: Medium):
         super().__init__(index, number_of_devices, medium)
-        
-        self.neighbors = [] # generate an appropriate list
+        rand = random.Random()
+
+        self.neighbors = [rand.randint(0, number_of_devices) for x in range(0, 3)] # generate an appropriate list
 
         self.routing_table = dict()
 
@@ -68,7 +71,17 @@ class RipCommunication(Device):
 
     def merge_tables(self, src, table):
         # return None if the table does not change
-        pass
+        doesChange = False
+        for routingRowIndex in table:
+            if routingRowIndex != src:
+                if routingRowIndex not in self.routing_table: #does not have current route
+                    table[routingRowIndex] = (src, table[routingRowIndex][1] + 1)
+                    doesChange = True
+                else: #has route already
+                    if self.routing_table[routingRowIndex][1] < table[routingRowIndex][1] + 1:
+                        table[routingRowIndex] = (src, table[routingRowIndex][1] + 1)
+                        doesChange = True
+        return table if doesChange else None
 
 
     def print_result(self):
